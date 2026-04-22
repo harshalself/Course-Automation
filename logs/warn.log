@@ -1,3 +1,0 @@
---- Run started at 2026-04-22T05:42:19.359Z ---
-[2026-04-22T05:42:40.156Z] [WARN] [Quiz Q1] Option 0: no feedback buttons visible. Breaking.
-[2026-04-22T05:42:40.162Z] [WARN] [Quiz Q1] No navigation button found after answering. Trying footer Next as last resort.
