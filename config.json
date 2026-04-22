@@ -1,0 +1,13 @@
+{
+  "lmsBaseUrl": "https://eranx.mkcl.org/learner/login",
+  "headless": false,
+  "slowMoMs": 150,
+  "loopDelayMs": 1200,
+  "maxLoopIterations": 100,
+  "quizMode": "manual",
+  "autoSubmitQuiz": true,
+  "stopOnAssignment": true,
+  "answerKeyFile": "data/answer-key.json",
+  "videoScriptFile": "scripts/video-complete.js",
+  "stateFile": "runtime/state.json"
+}
