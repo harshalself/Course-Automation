@@ -47,7 +47,11 @@ export async function detectPageType(
 
   // 3. Content specific matching.
   const isQuizIntro = await page.evaluate(() => {
-    const text = document.body.innerText.toLowerCase();
+    const body = document.body;
+    if (!body) {
+      return false;
+    }
+    const text = body.innerText.toLowerCase();
     // Do not re-trigger on results/score pages after submission.
     const isResultsPage = /score|result|your answers|retake|view report/i.test(
       text,
