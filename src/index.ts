@@ -27,8 +27,21 @@ function playStopNotification(): void {
   }
 }
 
+function printBanner(): void {
+  console.log("\n" + "=".repeat(60));
+  console.log("             COURSE AUTOMATION EVERYWHERE");
+  console.log("=".repeat(60));
+  console.log("DISCLAIMER: This project is for development and automation");
+  console.log("learning purposes ONLY. It does NOT promote cheating or");
+  console.log("dishonest practices. Use responsibly and in compliance");
+  console.log("with your platform's Terms of Service.");
+  console.log("=".repeat(60) + "\n");
+}
+
 async function main(): Promise<void> {
+  printBanner();
   const automation = new CourseAutomation();
+
   await automation.run();
 }
 

@@ -86,7 +86,10 @@ This project is open for contributions! Whether it's fixing bugs, adding new sel
 
 ## Disclaimer
 
-This tool is for educational purposes. Ensure you comply with the terms of service of your learning platform.
+> This project is strictly for **development and automation learning purposes**. It is intended to showcase technical capabilities in browser automation and system resilience.
+>
+> The author does **not** promote, encourage, or support cheating, academic dishonesty, or any practices that violate the Terms of Service of any educational platform. Users are solely responsible for their actions and should ensure they are using this tool in compliance with all relevant policies and legal requirements.
+
 
 ---
 
