@@ -1,63 +1,93 @@
-# Course Automation (Playwright + TypeScript)
+# Course Automation Everywhere
 
-This project automates a sequential course automation flow with these goals:
+An advanced, resilient automation suite built with Playwright and TypeScript, designed to navigate and complete online learning modules autonomously.
 
-- Move session-by-session in order.
-- Handle videos.
-- Handle quizzes via configurable mode.
-- Stop when an assignment/upload page is reached.
-- Save runtime state for resumable execution.
+**Developed by [Harshal Patil](https://github.com/harshalself)**
 
-## Features
-
-- Headed browser by default.
-- Auto login from environment credentials, with manual login fallback.
-- Quiz modes:
-  - `manual`: detect quiz and solve using sequential brute-force cycling.
-- Optional `AUTO_SUBMIT_QUIZ=true`.
-- For this course flow, set `VIDEO_SCRIPT_FILE=scripts/video-complete.js`.
-- Runtime state file at `runtime/state.json`.
+---
 
 ## Setup
 
-1. Install dependencies:
+Setting up Course Automation Everywhere is fast and straightforward.
+
+### 1. Installation
+
+Clone the repository and install dependencies. The browser binaries will be installed automatically.
 
 ```bash
 npm install
-npx playwright install chromium
 ```
 
-2. Create environment file:
+### 2. Configuration
 
-```bash
-cp .env.example .env
+**Environment Variables (`.env`):**
+Create a `.env` file based on `.env.example` and add your account credentials.
+
+```env
+COURSE_USER=your_username
+COURSE_PASS=your_password
 ```
 
-3. Fill `.env` values.
+**Behavioral Config (`config.json`):**
+Adjust the automation behavior in `config.json`.
 
-## Run
+| Field | Description | Default |
+| :--- | :--- | :--- |
+| `headless` | Run without a visible browser window | `false` |
+| `quizMode` | `manual` (brute-force) or specified mode | `manual` |
+| `autoSubmitQuiz` | Automatically submit quiz once answers found | `true` |
+| `stopOnAssignment` | Stop when a file upload step is reached | `true` |
+| `notifyOnStop` | Play a sound on completion/error | `true` |
+| `maxLoopIterations` | Maximum number of navigation steps per run | `100` |
+
+---
+
+## Core Features
+
+- **Quiz Solving Engine**: Automatically detects quizzes and uses a brute-force cycling algorithm to find correct answers.
+- **Video Completion**: Injects custom scripts into video players to trigger "completion" events immediately.
+- **Audio Alerts**: Plays a notification sound (`afplay` on macOS) when the automation finishes or requires intervention.
+- **Resumable Execution**: Saves progress in `runtime/state.json` to pick up exactly where it left off.
+- **Structural Awareness**: Recognizes documents, dashboards, and popups, navigating with human-like delays.
+- **Smart Stopping**: Halts when it detects an assignment or project upload page to prevent accidental submissions.
+
+---
+
+## Running the Automation
+
+Once configured, simply run:
 
 ```bash
 npm run start
 ```
 
-## Main Configuration
+---
 
-- `COURSE_BASE_URL`: login page URL.
-- `COURSE_USER`, `COURSE_PASS`: credentials.
-- `HEADLESS`: `true` or `false`.
-- `QUIZ_MODE`: `manual`.
-- `AUTO_SUBMIT_QUIZ`: `true` or `false`.
-- `STOP_ON_ASSIGNMENT`: `true` or `false`.
-- `VIDEO_SCRIPT_FILE`: JS file path injected on video pages. Use `scripts/video-complete.js` for this course flow.
-- `MAX_LOOP_ITERATIONS`: max navigation steps per run.
+## Contributing
 
-Example:
+This project is open for contributions! Whether it's fixing bugs, adding new selectors, or improving the engine, your help is welcome.
 
-- `VIDEO_SCRIPT_FILE=scripts/video-complete.js`
+### How to contribute:
+1. Fork the repository.
+2. Create a new feature branch (`git checkout -b feature/amazing-feature`).
+3. Commit your changes (`git commit -m 'Add some amazing feature'`).
+4. Push to the branch (`git push origin feature/amazing-feature`).
+5. Open a Pull Request.
 
-## Notes
+---
 
-- Selector patterns are heuristic and may require refinement after first live run.
-- Keep `.env` out of version control.
-- The bot intentionally stops when assignment/upload step is detected.
+## Troubleshooting & Logs
+
+- **Logs**: Execution logs are stored in the `logs/` directory. Check `info.log` for progress and `error.log` for debugging.
+- **State**: To reset memory, delete `runtime/state.json`.
+- **Manual Login**: If auto-login fails, log in manually in the browser window and press **Enter** in the terminal.
+
+---
+
+## Disclaimer
+
+This tool is for educational purposes. Ensure you comply with the terms of service of your learning platform.
+
+---
+
+*Built for rapid learning productivity.*

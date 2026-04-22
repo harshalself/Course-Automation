@@ -5,6 +5,7 @@
   "main": "dist/index.js",
   "scripts": {
     "start": "tsx src/index.ts",
+    "postinstall": "npx playwright install chromium",
     "check": "tsc --noEmit",
     "build": "tsc -p tsconfig.json"
   },
