@@ -4,3 +4,4 @@ dist/
 runtime/
 playwright-report/
 test-results/
+logs/
