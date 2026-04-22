@@ -19,10 +19,6 @@ function loadConfigJson() {
 const fileConfig = loadConfigJson();
 
 function parseQuizMode(value: string | undefined): QuizMode {
-  const normalized = (value ?? "manual").trim().toLowerCase();
-  if (normalized === "answer-key") {
-    return "answer-key";
-  }
   return "manual";
 }
 
@@ -38,7 +34,6 @@ export const config = {
   quizMode: parseQuizMode(fileConfig.quizMode),
   autoSubmitQuiz: fileConfig.autoSubmitQuiz ?? true,
   stopOnAssignment: fileConfig.stopOnAssignment ?? true,
-  answerKeyFile: fileConfig.answerKeyFile ?? "data/answer-key.json",
   videoScriptFile: fileConfig.videoScriptFile ?? "scripts/video-complete.js",
 
   stateFile: fileConfig.stateFile ?? "runtime/state.json",

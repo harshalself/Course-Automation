@@ -7,7 +7,6 @@
   "quizMode": "manual",
   "autoSubmitQuiz": true,
   "stopOnAssignment": true,
-  "answerKeyFile": "data/answer-key.json",
   "videoScriptFile": "scripts/video-complete.js",
   "stateFile": "runtime/state.json"
 }

@@ -13,9 +13,7 @@ This project automates a sequential LMS flow with these goals:
 - Headed browser by default.
 - Auto login from environment credentials, with manual login fallback.
 - Quiz modes:
-  - `manual`: detect quiz but do not answer.
-  - `answer-key`: answer from local JSON file.
-  - `ollama`: ask Ollama Cloud API for answer suggestions.
+  - `manual`: detect quiz and solve using sequential brute-force cycling.
 - Optional `AUTO_SUBMIT_QUIZ=true`.
 - For this ERA flow, set `VIDEO_SCRIPT_FILE=scripts/video-complete.js`.
 - Runtime state file at `runtime/state.json`.
@@ -48,35 +46,15 @@ npm run start
 - `LMS_BASE_URL`: login page URL.
 - `LMS_USERNAME`, `LMS_PASSWORD`: optional credentials.
 - `HEADLESS`: `true` or `false`.
-- `QUIZ_MODE`: `manual`, `answer-key`, `ollama`.
+- `QUIZ_MODE`: `manual`.
 - `AUTO_SUBMIT_QUIZ`: `true` or `false`.
 - `STOP_ON_ASSIGNMENT`: `true` or `false`.
-- `ANSWER_KEY_FILE`: JSON file path used by `answer-key` mode.
 - `VIDEO_SCRIPT_FILE`: JS file path injected on video pages. Use `scripts/video-complete.js` for this course flow.
-- `OLLAMA_BASE_URL`, `OLLAMA_MODEL`, `OLLAMA_API_KEY`: used by `ollama` mode.
 - `MAX_LOOP_ITERATIONS`: max navigation steps per run.
 
 Example:
 
 - `VIDEO_SCRIPT_FILE=scripts/video-complete.js`
-
-## Answer Key Format
-
-Use this shape:
-
-```json
-{
-  "entries": [
-    {
-      "question": "Question text",
-      "selectedOptions": ["Option A", "Option B"],
-      "textAnswer": "Optional text answer"
-    }
-  ]
-}
-```
-
-Start from `data/answer-key.example.json`.
 
 ## Notes
 
