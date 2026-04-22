@@ -18,7 +18,7 @@ import { logger } from "./logger";
 import { selectors } from "./selectors";
 import { RuntimeStateStore } from "./state-store";
 
-export class EraAutomation {
+export class CourseAutomation {
   private readonly state = new RuntimeStateStore(config.stateFile);
   private videoScript: string | null = null;
 
@@ -210,7 +210,7 @@ export class EraAutomation {
 
       const moved = await tryMoveToNext(page);
       if (!moved) {
-        // Next button locked — LMS may require completing a pending quiz/node first.
+        // Next button locked — Course Automation may require completing a pending quiz/node first.
         // Attempt tree traversal to find and click the next available item.
         logger.warn(
           "Next button blocked. Attempting tree traversal to find next available node.",

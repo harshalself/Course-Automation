@@ -1,5 +1,5 @@
 {
-  "lmsBaseUrl": "https://eranx.mkcl.org/learner/login",
+  "courseBaseUrl": "https://eranx.mkcl.org/learner/login",
   "headless": false,
   "slowMoMs": 150,
   "loopDelayMs": 1200,

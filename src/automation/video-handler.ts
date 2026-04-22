@@ -60,7 +60,7 @@ export async function handleVideo(
     }
 
     logger.warn(
-      `Video "${title}" already handled but Next is LOCKED. Re-running skip script to force LMS registration...`,
+      `Video "${title}" already handled but Next is LOCKED. Re-running skip script to force Course Automation registration...`,
     );
     if (videoScript) {
       await page.evaluate((scriptText) => {
@@ -74,7 +74,7 @@ export async function handleVideo(
           v.dispatchEvent(new Event("ended", { bubbles: true }));
         }
       });
-      logger.info("Re-ran video skip. Waiting 5s for LMS backend...");
+      logger.info("Re-ran video skip. Waiting 5s for Course Automation backend...");
       await page.waitForTimeout(5000);
     }
     return false;
@@ -96,7 +96,7 @@ export async function handleVideo(
       }
     });
     logger.info(
-      "Video skip script run. Waiting for LMS backend to acknowledge...",
+      "Video skip script run. Waiting for Course Automation backend to acknowledge...",
     );
     await page.waitForTimeout(3000);
   } else {

@@ -1,7 +1,7 @@
 {
-  "name": "lms",
+  "name": "course-automation",
   "version": "1.0.0",
-  "description": "Sequential LMS automation with Playwright and optional Ollama-backed quiz assistant",
+  "description": "Sequential Course Automation with Playwright",
   "main": "dist/index.js",
   "scripts": {
     "start": "tsx src/index.ts",

@@ -23,9 +23,9 @@ function parseQuizMode(value: string | undefined): QuizMode {
 }
 
 export const config = {
-  baseUrl: fileConfig.lmsBaseUrl ?? "https://eranx.mkcl.org/learner/login",
-  username: process.env.LMS_USERNAME,
-  password: process.env.LMS_PASSWORD,
+  baseUrl: fileConfig.courseBaseUrl ?? "https://eranx.mkcl.org/learner/login",
+  username: process.env.COURSE_USER,
+  password: process.env.COURSE_PASS,
   headless: fileConfig.headless ?? false,
   slowMoMs: fileConfig.slowMoMs ?? 150,
   loopDelayMs: fileConfig.loopDelayMs ?? 1200,

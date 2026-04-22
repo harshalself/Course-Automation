@@ -1,8 +1,8 @@
-import { EraAutomation } from "./automation";
+import { CourseAutomation } from "./automation";
 import { logger } from "./logger";
 
 async function main(): Promise<void> {
-  const automation = new EraAutomation();
+  const automation = new CourseAutomation();
   await automation.run();
 }
 

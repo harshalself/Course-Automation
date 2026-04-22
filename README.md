@@ -1,6 +1,6 @@
-# LMS Sequential Automation (Playwright + TypeScript)
+# Course Automation (Playwright + TypeScript)
 
-This project automates a sequential LMS flow with these goals:
+This project automates a sequential course automation flow with these goals:
 
 - Move session-by-session in order.
 - Handle videos.
@@ -15,7 +15,7 @@ This project automates a sequential LMS flow with these goals:
 - Quiz modes:
   - `manual`: detect quiz and solve using sequential brute-force cycling.
 - Optional `AUTO_SUBMIT_QUIZ=true`.
-- For this ERA flow, set `VIDEO_SCRIPT_FILE=scripts/video-complete.js`.
+- For this course flow, set `VIDEO_SCRIPT_FILE=scripts/video-complete.js`.
 - Runtime state file at `runtime/state.json`.
 
 ## Setup
@@ -43,8 +43,8 @@ npm run start
 
 ## Main Configuration
 
-- `LMS_BASE_URL`: login page URL.
-- `LMS_USERNAME`, `LMS_PASSWORD`: optional credentials.
+- `COURSE_BASE_URL`: login page URL.
+- `COURSE_USER`, `COURSE_PASS`: credentials.
 - `HEADLESS`: `true` or `false`.
 - `QUIZ_MODE`: `manual`.
 - `AUTO_SUBMIT_QUIZ`: `true` or `false`.
