@@ -8,5 +8,7 @@
   "autoSubmitQuiz": true,
   "stopOnAssignment": true,
   "videoScriptFile": "scripts/video-complete.js",
-  "stateFile": "runtime/state.json"
+  "stateFile": "runtime/state.json",
+  "notifyOnStop": true,
+  "stopSoundFile": "/System/Library/Sounds/Glass.aiff"
 }

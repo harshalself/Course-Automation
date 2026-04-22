@@ -35,6 +35,9 @@ export const config = {
   autoSubmitQuiz: fileConfig.autoSubmitQuiz ?? true,
   stopOnAssignment: fileConfig.stopOnAssignment ?? true,
   videoScriptFile: fileConfig.videoScriptFile ?? "scripts/video-complete.js",
+  notifyOnStop: fileConfig.notifyOnStop ?? true,
+  stopSoundFile:
+    fileConfig.stopSoundFile ?? "/System/Library/Sounds/Glass.aiff",
 
   stateFile: fileConfig.stateFile ?? "runtime/state.json",
 };

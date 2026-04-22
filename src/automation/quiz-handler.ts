@@ -65,6 +65,8 @@ export async function handleQuizQuestion(
         continue;
       }
 
+      const beforeSignature = await getQuizStepSignature(page);
+
       const option = page.locator(optionSelector).nth(optIdx);
       if (!(await isVisible(option))) {
         logger.warn(
@@ -77,7 +79,9 @@ export async function handleQuizQuestion(
         `[Quiz Q${questionCount}] Selecting option index ${optIdx}...`,
       );
       await option.click({ force: true });
-      await page.waitForTimeout(1500);
+      await page.waitForTimeout(700);
+
+      let submitted = false;
 
       const checkBtn = page
         .locator("button")
@@ -85,27 +89,46 @@ export async function handleQuizQuestion(
         .first();
       if (await isVisible(checkBtn)) {
         await checkBtn.click({ force: true });
-        await page.waitForTimeout(1500);
+        submitted = true;
+        await page.waitForTimeout(700);
       }
 
-      let advanced = false;
+      let submitPattern = "unknown";
       for (const pat of [
         /save\s*(&|and)?\s*next/i,
         /^next$/i,
         /^continue$/i,
         /^submit$/i,
+        /^finish$/i,
       ]) {
         const btn = page.locator("button").filter({ hasText: pat }).first();
         if ((await isVisible(btn)) && !(await btn.isDisabled())) {
-          logger.info(
-            `[Quiz Q${questionCount}] Option ${optIdx} CORRECT! Advancing with: ${pat}`,
-          );
           await btn.click({ force: true });
-          advanced = true;
+          submitted = true;
+          submitPattern = String(pat);
           break;
         }
       }
-      if (advanced) {
+
+      if (!submitted) {
+        logger.warn(
+          `[Quiz Q${questionCount}] Option ${optIdx}: no submit/check button available.`,
+        );
+        continue;
+      }
+
+      await page.waitForTimeout(1200);
+
+      if (await confirmEndExamDialog(page, questionCount, optIdx)) {
+        questionResolved = true;
+        break;
+      }
+
+      const afterSignature = await getQuizStepSignature(page);
+      if (afterSignature !== beforeSignature) {
+        logger.info(
+          `[Quiz Q${questionCount}] Option ${optIdx} accepted. Question advanced after ${submitPattern}.`,
+        );
         questionResolved = true;
         break;
       }
@@ -114,25 +137,8 @@ export async function handleQuizQuestion(
         .locator("button")
         .filter({ hasText: /try\s*again|retry/i })
         .first();
-      const endExamNow = page
-        .locator("button")
-        .filter({ hasText: /end\s*exam|finish/i })
-        .first();
       const hasTryAgain = await tryAgainNow.isVisible().catch(() => false);
-      const hasEndExam = await endExamNow.isVisible().catch(() => false);
-
-      if (hasEndExam && !hasTryAgain) {
-        await page.waitForTimeout(800);
-        const retryConfirm = await tryAgainNow.isVisible().catch(() => false);
-        if (!retryConfirm) {
-          logger.info(
-            `[Quiz Q${questionCount}] Option ${optIdx} CORRECT (last Q confirmed). Clicking End Exam...`,
-          );
-          await endExamNow.click({ force: true });
-          questionResolved = true;
-          break;
-        }
-      }
+      const hasWrongFeedback = await hasWrongAnswerFeedback(page);
 
       if (hasTryAgain) {
         if (attempt < optionOrder.length - 1) {
@@ -147,28 +153,36 @@ export async function handleQuizQuestion(
         }
         await tryAgainNow.click({ force: true });
         await page.waitForTimeout(1000);
+        continue;
+      }
+
+      if (hasWrongFeedback) {
+        if (attempt < optionOrder.length - 1) {
+          logger.info(
+            `[Quiz Q${questionCount}] Option ${optIdx} WRONG (toast feedback). Trying next option...`,
+          );
+        } else {
+          logger.warn(
+            `[Quiz Q${questionCount}] Option ${optIdx} appears WRONG (toast feedback) and it was the LAST option.`,
+          );
+        }
+        continue;
+      }
+
+      if (attempt < optionOrder.length - 1) {
+        logger.warn(
+          `[Quiz Q${questionCount}] Option ${optIdx}: question did not advance and no explicit feedback. Trying next option...`,
+        );
       } else {
         logger.warn(
-          `[Quiz Q${questionCount}] Option ${optIdx}: no feedback buttons visible. Breaking.`,
+          `[Quiz Q${questionCount}] Option ${optIdx}: no advance/feedback and this was the LAST option.`,
         );
-        break;
-      }
-    }
-
-    if (!questionResolved) {
-      const anyBtn = page
-        .getByRole("button", { name: /save|next|submit|continue/i })
-        .first();
-      if (await isVisible(anyBtn)) {
-        await anyBtn.click({ force: true });
-        questionResolved = true;
-        logger.info(`[Quiz Q${questionCount}] Clicked via getByRole fallback.`);
       }
     }
 
     if (!questionResolved) {
       logger.warn(
-        `[Quiz Q${questionCount}] No navigation button found after answering. Trying footer Next as last resort.`,
+        `[Quiz Q${questionCount}] Could not resolve question from available options. Trying footer Next as last resort.`,
       );
       await tryMoveToNext(page);
       await page.waitForTimeout(2000);
@@ -195,6 +209,98 @@ export async function handleQuizQuestion(
   await page.waitForTimeout(2000);
   await tryMoveToNext(page);
   return true;
+}
+
+async function getQuizStepSignature(page: Page): Promise<string> {
+  return await page.evaluate(() => {
+    const questionCandidates = [
+      "[class*='question'] h4",
+      "[class*='question'] h3",
+      "[class*='question'] h2",
+      ".question h4",
+      ".question h3",
+      ".question h2",
+      "legend",
+      "h4",
+      "h3",
+    ];
+
+    let questionText = "";
+    for (const selector of questionCandidates) {
+      const node = document.querySelector(selector);
+      const text = (node?.textContent ?? "").replace(/\s+/g, " ").trim();
+      if (text.length > 8) {
+        questionText = text;
+        break;
+      }
+    }
+
+    let progressText = "";
+    const progressNodes = document.querySelectorAll("p, span, div");
+    for (const node of progressNodes) {
+      const text = (node.textContent ?? "").replace(/\s+/g, " ").trim();
+      if (/^\d+\s*\/\s*\d+$/.test(text)) {
+        progressText = text;
+        break;
+      }
+    }
+
+    return `${progressText || "?/?"}|${questionText.slice(0, 220)}`;
+  });
+}
+
+async function hasWrongAnswerFeedback(page: Page): Promise<boolean> {
+  const wrongAlert = page
+    .locator("[role='alert'], .p-toast-message, .toast-message")
+    .filter({ hasText: /wrong\s*answer|incorrect|try\s*again/i })
+    .first();
+
+  if (await wrongAlert.isVisible().catch(() => false)) {
+    return true;
+  }
+
+  return await page.evaluate(() => {
+    const text = (document.body?.innerText ?? "").toLowerCase();
+    return (
+      text.includes("wrong answer") ||
+      text.includes("incorrect") ||
+      text.includes("try again")
+    );
+  });
+}
+
+async function confirmEndExamDialog(
+  page: Page,
+  questionCount: number,
+  optIdx: number,
+): Promise<boolean> {
+  const dialog = page
+    .locator(".p-dialog, .p-confirm-dialog, [role='dialog']")
+    .filter({
+      hasText: /end\s*exam|attempted all questions|you have attempted/i,
+    })
+    .first();
+
+  const isVisibleNow = await dialog.isVisible().catch(() => false);
+  if (!isVisibleNow) {
+    return false;
+  }
+
+  const yesButton = dialog
+    .locator("button")
+    .filter({ hasText: /^yes$|confirm|ok/i })
+    .first();
+
+  if (await yesButton.isVisible().catch(() => false)) {
+    logger.info(
+      `[Quiz Q${questionCount}] Option ${optIdx} appears correct. End Exam confirmation visible, clicking Yes.`,
+    );
+    await yesButton.click({ force: true });
+    await page.waitForTimeout(1500);
+    return true;
+  }
+
+  return false;
 }
 
 async function extractQuizSnapshot(

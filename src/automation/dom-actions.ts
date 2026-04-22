@@ -47,14 +47,44 @@ export async function clickAction(
   for (const name of names) {
     const button = page.getByRole("button", { name }).first();
     if (await isClickable(button)) {
-      await button.click();
-      return true;
+      try {
+        await button.click();
+        return true;
+      } catch (error) {
+        logger.warn(
+          `Button click failed for pattern ${name}: ${(error as Error).message}`,
+        );
+
+        await dismissBlockingDialog(page);
+
+        try {
+          await button.click({ force: true });
+          return true;
+        } catch {
+          // Continue trying other controls.
+        }
+      }
     }
 
     const link = page.getByRole("link", { name }).first();
     if (await isClickable(link)) {
-      await link.click();
-      return true;
+      try {
+        await link.click();
+        return true;
+      } catch (error) {
+        logger.warn(
+          `Link click failed for pattern ${name}: ${(error as Error).message}`,
+        );
+
+        await dismissBlockingDialog(page);
+
+        try {
+          await link.click({ force: true });
+          return true;
+        } catch {
+          // Continue trying other controls.
+        }
+      }
     }
   }
 
@@ -71,9 +101,23 @@ export async function tryMoveToNext(page: Page): Promise<boolean> {
       const rawClass = await nextBtn.getAttribute("class");
       if (!isDisabled && !rawClass?.includes("disabled-button")) {
         logger.info("Clicking footer Next button explicitly.");
-        await nextBtn.click();
-        await page.waitForTimeout(AFTER_NEXT_CLICK_WAIT_MS);
-        return true;
+        try {
+          await nextBtn.click();
+          await page.waitForTimeout(AFTER_NEXT_CLICK_WAIT_MS);
+          return true;
+        } catch (error) {
+          logger.warn(`Footer Next click failed: ${(error as Error).message}`);
+
+          await dismissBlockingDialog(page);
+
+          try {
+            await nextBtn.click({ force: true });
+            await page.waitForTimeout(AFTER_NEXT_CLICK_WAIT_MS);
+            return true;
+          } catch {
+            // Fall through and keep polling.
+          }
+        }
       }
       const elapsed = Math.round((Date.now() - startedAt) / 1000);
       logger.info(`Next button still locked. Polling... (${elapsed}s)`);
@@ -97,4 +141,33 @@ export async function tryMoveToNext(page: Page): Promise<boolean> {
 
   await page.waitForTimeout(AFTER_NEXT_CLICK_WAIT_MS);
   return true;
+}
+
+async function dismissBlockingDialog(page: Page): Promise<boolean> {
+  const dialogButtons = [
+    /try\s*again/i,
+    /ok/i,
+    /close/i,
+    /cancel/i,
+    /yes/i,
+    /no/i,
+  ];
+
+  for (const pattern of dialogButtons) {
+    const button = page
+      .locator(
+        ".p-dialog button, .p-confirm-dialog button, [role='dialog'] button",
+      )
+      .filter({ hasText: pattern })
+      .first();
+
+    if (await isClickable(button)) {
+      logger.info(`Dismissing blocking dialog with button ${pattern}.`);
+      await button.click({ force: true }).catch(() => undefined);
+      await page.waitForTimeout(300);
+      return true;
+    }
+  }
+
+  return false;
 }
