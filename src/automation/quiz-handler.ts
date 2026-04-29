@@ -1,7 +1,7 @@
 import { Page } from "playwright";
 
 import { config } from "../config";
-import { answerQuizWithOpenRouter } from "../llm/openrouter";
+import { answerQuizWithLlm } from "../llm/quiz-answerer";
 import { logger } from "../logger";
 import { QuizMode, QuizSnapshot } from "../types";
 import { isVisible, tryMoveToNext } from "./dom-actions";
@@ -240,10 +240,10 @@ async function answerQuestionWithLlm(
   questionCount: number,
 ): Promise<"resolved" | "selected-only" | "unresolved"> {
   logger.info(
-    `[Quiz Q${questionCount}] Asking OpenRouter model ${config.openRouter.model} for an answer.`,
+    `[Quiz Q${questionCount}] Asking ${config.llm.provider} model ${config.llm.model} for an answer.`,
   );
 
-  const answer = await answerQuizWithOpenRouter(snapshot, config.openRouter);
+  const answer = await answerQuizWithLlm(snapshot, config.llm);
   if (!answer) {
     return "unresolved";
   }

@@ -1,8 +1,9 @@
-import { logger } from "../logger";
-import { OpenRouterConfig, QuizAnswer, QuizSnapshot } from "../types";
 import { z } from "zod";
 
-interface OpenRouterChatResponse {
+import { logger } from "../logger";
+import { LlmConfig, QuizAnswer, QuizSnapshot } from "../types";
+
+interface ChatCompletionResponse {
   choices?: Array<{
     message?: {
       content?: string;
@@ -20,89 +21,74 @@ const QuizAnswerResponseSchema = z.object({
   explanation: z.string().nullable().optional(),
 });
 
-export async function answerQuizWithOpenRouter(
+const quizAnswerJsonSchema = {
+  type: "object",
+  properties: {
+    answerIndices: {
+      type: "array",
+      description:
+        "Zero-based indexes of the selected options. Use one index for single-choice questions.",
+      items: {
+        anyOf: [{ type: "number" }, { type: "string" }],
+      },
+    },
+    textAnswer: {
+      anyOf: [{ type: "string" }, { type: "null" }],
+      description: "Answer text for text-response questions, otherwise null.",
+    },
+    confidence: {
+      anyOf: [{ type: "number" }, { type: "null" }],
+      description: "Confidence from 0 to 1.",
+    },
+    explanation: {
+      anyOf: [{ type: "string" }, { type: "null" }],
+      description:
+        "Very short reason for the selected answer. Use 12 words or fewer, or null.",
+    },
+  },
+  required: ["answerIndices", "textAnswer", "confidence", "explanation"],
+  additionalProperties: false,
+};
+
+export async function answerQuizWithLlm(
   snapshot: QuizSnapshot,
-  openRouter: OpenRouterConfig,
+  llm: LlmConfig,
 ): Promise<QuizAnswer | null> {
-  if (!openRouter.apiKey) {
-    logger.warn(
-      "OPENROUTER_API_KEY is not configured; cannot use llm quiz mode.",
-    );
+  if (!llm.apiKey) {
+    logger.warn(`No API key configured for ${llm.provider} llm provider.`);
     return null;
   }
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), openRouter.timeoutMs);
+  const timeout = setTimeout(() => controller.abort(), llm.timeoutMs);
 
   try {
-    const response = await fetch(
-      "https://openrouter.ai/api/v1/chat/completions",
-      {
-        method: "POST",
-        signal: controller.signal,
-        headers: buildHeaders(openRouter),
-        body: JSON.stringify({
-          model: openRouter.model,
-          temperature: openRouter.temperature,
-          response_format: {
-            type: "json_schema",
-            json_schema: {
-              name: "quiz_answer",
-              strict: true,
-              schema: {
-                type: "object",
-                properties: {
-                  answerIndices: {
-                    type: "array",
-                    description:
-                      "Zero-based indexes of the selected options. Use one index for single-choice questions.",
-                    items: {
-                      anyOf: [{ type: "number" }, { type: "string" }],
-                    },
-                  },
-                  textAnswer: {
-                    anyOf: [{ type: "string" }, { type: "null" }],
-                    description:
-                      "Answer text for text-response questions, otherwise null.",
-                  },
-                  confidence: {
-                    anyOf: [{ type: "number" }, { type: "null" }],
-                    description: "Confidence from 0 to 1.",
-                  },
-                  explanation: {
-                    anyOf: [{ type: "string" }, { type: "null" }],
-                    description: "Brief reason for the selected answer.",
-                  },
-                },
-                required: [
-                  "answerIndices",
-                  "textAnswer",
-                  "confidence",
-                  "explanation",
-                ],
-                additionalProperties: false,
-              },
-            },
+    const response = await fetch(`${trimTrailingSlash(llm.baseUrl)}/chat/completions`, {
+      method: "POST",
+      signal: controller.signal,
+      headers: buildHeaders(llm),
+      body: JSON.stringify({
+        model: llm.model,
+        temperature: llm.temperature,
+        response_format: buildResponseFormat(llm),
+        messages: [
+          {
+            role: "system",
+            content:
+              "You answer multiple-choice QA test questions. Return only strict JSON with answerIndices, textAnswer, confidence, and explanation. answerIndices must use zero-based option indexes. Keep explanation null or 12 words or fewer to minimize output tokens.",
           },
-          messages: [
-            {
-              role: "system",
-              content:
-                "You answer multiple-choice QA test questions. Return only strict JSON with answerIndices, textAnswer, confidence, and explanation. answerIndices must use zero-based option indexes.",
-            },
-            {
-              role: "user",
-              content: buildPrompt(snapshot),
-            },
-          ],
-        }),
-      },
-    );
+          {
+            role: "user",
+            content: buildPrompt(snapshot),
+          },
+        ],
+      }),
+    });
 
-    const body = (await response.json()) as OpenRouterChatResponse;
+    const body = (await response.json()) as ChatCompletionResponse;
     if (!response.ok) {
       logger.warn(
-        `OpenRouter request failed: ${
+        `${llm.provider} request failed: ${
           body.error?.message ?? response.statusText
         }`,
       );
@@ -111,14 +97,14 @@ export async function answerQuizWithOpenRouter(
 
     const content = body.choices?.[0]?.message?.content;
     if (!content) {
-      logger.warn("OpenRouter returned no message content.");
+      logger.warn(`${llm.provider} returned no message content.`);
       return null;
     }
 
     const parsed = QuizAnswerResponseSchema.safeParse(parseJsonObject(content));
     if (!parsed.success) {
       logger.warn(
-        `OpenRouter response did not match quiz answer schema: ${parsed.error.message}`,
+        `${llm.provider} response did not match quiz answer schema: ${parsed.error.message}`,
       );
       return null;
     }
@@ -127,8 +113,8 @@ export async function answerQuizWithOpenRouter(
   } catch (error) {
     const message =
       error instanceof Error && error.name === "AbortError"
-        ? `OpenRouter request timed out after ${openRouter.timeoutMs}ms`
-        : `OpenRouter request failed: ${(error as Error).message}`;
+        ? `${llm.provider} request timed out after ${llm.timeoutMs}ms`
+        : `${llm.provider} request failed: ${(error as Error).message}`;
     logger.warn(message);
     return null;
   } finally {
@@ -136,21 +122,38 @@ export async function answerQuizWithOpenRouter(
   }
 }
 
-function buildHeaders(openRouter: OpenRouterConfig): Record<string, string> {
+function buildHeaders(llm: LlmConfig): Record<string, string> {
   const headers: Record<string, string> = {
-    Authorization: `Bearer ${openRouter.apiKey}`,
+    Authorization: `Bearer ${llm.apiKey}`,
     "Content-Type": "application/json",
   };
 
-  if (openRouter.siteUrl) {
-    headers["HTTP-Referer"] = openRouter.siteUrl;
-  }
+  if (llm.provider === "openrouter") {
+    if (llm.siteUrl) {
+      headers["HTTP-Referer"] = llm.siteUrl;
+    }
 
-  if (openRouter.appName) {
-    headers["X-OpenRouter-Title"] = openRouter.appName;
+    if (llm.appName) {
+      headers["X-OpenRouter-Title"] = llm.appName;
+    }
   }
 
   return headers;
+}
+
+function buildResponseFormat(llm: LlmConfig): object {
+  if (llm.structuredOutputMode === "json_object") {
+    return { type: "json_object" };
+  }
+
+  return {
+    type: "json_schema",
+    json_schema: {
+      name: "quiz_answer",
+      strict: true,
+      schema: quizAnswerJsonSchema,
+    },
+  };
 }
 
 function buildPrompt(snapshot: QuizSnapshot): string {
@@ -163,8 +166,9 @@ function buildPrompt(snapshot: QuizSnapshot): string {
     snapshot.options.length > 0 ? `Options:\n${options}` : "Options: none",
     `Multiple selections allowed: ${snapshot.isMultiSelect}`,
     `Text response field present: ${snapshot.hasTextResponse}`,
-    "Return JSON like {\"answerIndices\":[0],\"textAnswer\":null,\"confidence\":0.82,\"explanation\":\"brief reason\"}.",
+    "Return JSON like {\"answerIndices\":[0],\"textAnswer\":null,\"confidence\":0.82,\"explanation\":null}.",
     "For single-choice questions, return exactly one index. For multi-select questions, return every correct index. For text response questions, put the response in textAnswer.",
+    "Keep explanation null unless useful; if included, use 12 words or fewer.",
   ].join("\n\n");
 }
 
@@ -180,7 +184,7 @@ function parseJsonObject(content: string): unknown {
       return JSON.parse(trimmed.slice(start, end + 1));
     }
 
-    throw new Error("Could not parse JSON from OpenRouter response.");
+    throw new Error("Could not parse JSON from LLM response.");
   }
 }
 
@@ -225,7 +229,7 @@ function normalizeAnswer(
     typeof record.confidence === "number" ? record.confidence : undefined;
   const explanation =
     typeof record.explanation === "string" && record.explanation.trim()
-      ? record.explanation.trim()
+      ? record.explanation.trim().split(/\s+/).slice(0, 12).join(" ")
       : undefined;
 
   if (answerIndices.length === 0 && !textAnswer) {
@@ -255,4 +259,8 @@ function parseAnswerIndex(value: unknown): number {
   }
 
   return NaN;
+}
+
+function trimTrailingSlash(value: string): string {
+  return value.replace(/\/+$/, "");
 }

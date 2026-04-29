@@ -7,13 +7,20 @@ export interface QuizSnapshot {
   hasTextResponse: boolean;
 }
 
-export interface OpenRouterConfig {
+export type LlmProvider = "openrouter" | "ollama" | "lmstudio";
+
+export type LlmStructuredOutputMode = "json_schema" | "json_object";
+
+export interface LlmConfig {
+  provider: LlmProvider;
   apiKey?: string;
   model: string;
+  baseUrl: string;
   siteUrl?: string;
   appName?: string;
   temperature: number;
   timeoutMs: number;
+  structuredOutputMode: LlmStructuredOutputMode;
 }
 
 export interface QuizAnswer {
