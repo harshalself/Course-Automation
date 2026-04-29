@@ -26,6 +26,7 @@ Create a `.env` file based on `.env.example` and add your account credentials.
 ```env
 COURSE_USER=your_username
 COURSE_PASS=your_password
+OPENROUTER_API_KEY=your_openrouter_api_key
 ```
 
 **Behavioral Config (`config.json`):**
@@ -34,7 +35,10 @@ Adjust the automation behavior in `config.json`.
 | Field | Description | Default |
 | :--- | :--- | :--- |
 | `headless` | Run without a visible browser window | `false` |
-| `quizMode` | `manual` (brute-force) or specified mode | `manual` |
+| `quizMode` | `manual` for legacy probing or `llm` for OpenRouter-based answering | `manual` |
+| `openRouterModel` | OpenRouter model id, e.g. `openai/gpt-5.2`, `anthropic/claude-sonnet-4.6`, `google/gemini-2.5-flash`, `cohere/command-a` | `google/gemini-2.5-flash` |
+| `openRouterTemperature` | Model sampling temperature for quiz answers | `0` |
+| `openRouterTimeoutMs` | LLM request timeout in milliseconds | `45000` |
 | `autoSubmitQuiz` | Automatically submit quiz once answers found | `true` |
 | `stopOnAssignment` | Stop when a file upload step is reached | `true` |
 | `notifyOnStop` | Play a sound on completion/error | `true` |
@@ -44,7 +48,7 @@ Adjust the automation behavior in `config.json`.
 
 ## Core Features
 
-- **Quiz Solving Engine**: Automatically detects quizzes and uses a brute-force cycling algorithm to find correct answers.
+- **Quiz Solving Engine**: Automatically detects quizzes and can either use the legacy manual probing mode or ask an OpenRouter LLM to choose answers.
 - **Video Completion**: Injects custom scripts into video players to trigger "completion" events immediately.
 - **Audio Alerts**: Plays a notification sound (`afplay` on macOS) when the automation finishes or requires intervention.
 - **Resumable Execution**: Saves progress in `runtime/state.json` to pick up exactly where it left off.

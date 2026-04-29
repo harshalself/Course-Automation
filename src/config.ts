@@ -19,6 +19,10 @@ function loadConfigJson() {
 const fileConfig = loadConfigJson();
 
 function parseQuizMode(value: string | undefined): QuizMode {
+  if (value === "llm") {
+    return "llm";
+  }
+
   return "manual";
 }
 
@@ -33,6 +37,26 @@ export const config = {
 
   quizMode: parseQuizMode(fileConfig.quizMode),
   autoSubmitQuiz: fileConfig.autoSubmitQuiz ?? true,
+  openRouter: {
+    apiKey: process.env.OPENROUTER_API_KEY ?? fileConfig.openRouterApiKey,
+    model:
+      fileConfig.openRouterModel ??
+      fileConfig.openRouter?.model ??
+      "google/gemini-2.5-flash",
+    siteUrl: fileConfig.openRouterSiteUrl ?? fileConfig.openRouter?.siteUrl,
+    appName:
+      fileConfig.openRouterAppName ??
+      fileConfig.openRouter?.appName ??
+      "Course Automation Everywhere",
+    temperature:
+      fileConfig.openRouterTemperature ??
+      fileConfig.openRouter?.temperature ??
+      0,
+    timeoutMs:
+      fileConfig.openRouterTimeoutMs ??
+      fileConfig.openRouter?.timeoutMs ??
+      45000,
+  },
   stopOnAssignment: fileConfig.stopOnAssignment ?? true,
   videoScriptFile: fileConfig.videoScriptFile ?? "scripts/video-complete.js",
   notifyOnStop: fileConfig.notifyOnStop ?? true,

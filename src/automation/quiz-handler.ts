@@ -1,5 +1,7 @@
 import { Page } from "playwright";
 
+import { config } from "../config";
+import { answerQuizWithOpenRouter } from "../llm/openrouter";
 import { logger } from "../logger";
 import { QuizMode, QuizSnapshot } from "../types";
 import { isVisible, tryMoveToNext } from "./dom-actions";
@@ -8,7 +10,7 @@ type AssignmentStepDetector = (page: Page) => Promise<boolean>;
 
 export async function handleQuizQuestion(
   page: Page,
-  _mode: QuizMode,
+  mode: QuizMode,
   isAssignmentStep: AssignmentStepDetector,
 ): Promise<boolean> {
   const MAX_QUESTIONS = 60;
@@ -45,6 +47,27 @@ export async function handleQuizQuestion(
     let questionResolved = false;
     const radioCount = await page.locator("input[type='radio']").count();
     const checkboxCount = await page.locator("input[type='checkbox']").count();
+
+    if (mode === "llm") {
+      const llmResult = await answerQuestionWithLlm(
+        page,
+        snapshot,
+        questionCount,
+      );
+      if (llmResult === "selected-only") {
+        return true;
+      }
+
+      if (llmResult === "resolved") {
+        await page.waitForTimeout(2000);
+        continue;
+      }
+
+      logger.warn(
+        `[Quiz Q${questionCount}] LLM answer unavailable or did not resolve the question. Stopping quiz handling without brute-force attempts.`,
+      );
+      return true;
+    }
 
     logger.info(
       `[Quiz Q${questionCount}] Trying options sequentially. Total options: ${radioCount || checkboxCount}`,
@@ -209,6 +232,174 @@ export async function handleQuizQuestion(
   await page.waitForTimeout(2000);
   await tryMoveToNext(page);
   return true;
+}
+
+async function answerQuestionWithLlm(
+  page: Page,
+  snapshot: QuizSnapshot,
+  questionCount: number,
+): Promise<"resolved" | "selected-only" | "unresolved"> {
+  logger.info(
+    `[Quiz Q${questionCount}] Asking OpenRouter model ${config.openRouter.model} for an answer.`,
+  );
+
+  const answer = await answerQuizWithOpenRouter(snapshot, config.openRouter);
+  if (!answer) {
+    return "unresolved";
+  }
+
+  const confidence =
+    answer.confidence === undefined
+      ? ""
+      : ` confidence=${answer.confidence.toFixed(2)}`;
+  logger.info(
+    `[Quiz Q${questionCount}] LLM selected indices [${answer.answerIndices.join(
+      ", ",
+    )}]${confidence}.`,
+  );
+  if (answer.explanation) {
+    logger.info(
+      `[Quiz Q${questionCount}] LLM explanation: ${answer.explanation.slice(
+        0,
+        220,
+      )}`,
+    );
+  }
+
+  const beforeSignature = await getQuizStepSignature(page);
+  const selected = await applyLlmAnswer(page, snapshot, answer);
+  if (!selected) {
+    return "unresolved";
+  }
+
+  if (!config.autoSubmitQuiz) {
+    logger.info(
+      `[Quiz Q${questionCount}] Answer selected. autoSubmitQuiz=false, leaving submission to the operator.`,
+    );
+    return "selected-only";
+  }
+
+  const submitted = await submitCurrentAnswer(page);
+  if (!submitted) {
+    logger.warn(
+      `[Quiz Q${questionCount}] LLM answer selected, but no submit/check/next button was available.`,
+    );
+    return "unresolved";
+  }
+
+  await page.waitForTimeout(1200);
+
+  if (
+    await confirmEndExamDialog(
+      page,
+      questionCount,
+      answer.answerIndices[0] ?? -1,
+    )
+  ) {
+    return "resolved";
+  }
+
+  const afterSignature = await getQuizStepSignature(page);
+  if (afterSignature !== beforeSignature) {
+    logger.info(
+      `[Quiz Q${questionCount}] LLM answer accepted; question advanced.`,
+    );
+    return "resolved";
+  }
+
+  const tryAgainNow = page
+    .locator("button")
+    .filter({ hasText: /try\s*again|retry/i })
+    .first();
+  if (await tryAgainNow.isVisible().catch(() => false)) {
+    logger.warn(`[Quiz Q${questionCount}] LLM answer appears incorrect.`);
+    await tryAgainNow.click({ force: true });
+    await page.waitForTimeout(1000);
+    return "unresolved";
+  }
+
+  if (await hasWrongAnswerFeedback(page)) {
+    logger.warn(
+      `[Quiz Q${questionCount}] LLM answer received wrong-answer feedback.`,
+    );
+    return "unresolved";
+  }
+
+  logger.warn(
+    `[Quiz Q${questionCount}] LLM answer was submitted, but the page did not clearly advance.`,
+  );
+  return "unresolved";
+}
+
+async function applyLlmAnswer(
+  page: Page,
+  snapshot: QuizSnapshot,
+  answer: { answerIndices: number[]; textAnswer?: string },
+): Promise<boolean> {
+  let selected = false;
+
+  if (snapshot.hasTextResponse && answer.textAnswer) {
+    const textInput = page.locator("textarea, input[type='text']").first();
+    if (await isVisible(textInput)) {
+      await textInput.fill(answer.textAnswer);
+      selected = true;
+    }
+  }
+
+  if (answer.answerIndices.length === 0) {
+    return selected;
+  }
+
+  const radioCount = await page.locator("input[type='radio']").count();
+  const checkboxCount = await page.locator("input[type='checkbox']").count();
+  const optionSelector =
+    radioCount > 0 ? "input[type='radio']" : "input[type='checkbox']";
+  const optionCount = radioCount > 0 ? radioCount : checkboxCount;
+
+  for (const index of answer.answerIndices) {
+    if (index < 0 || index >= optionCount) {
+      continue;
+    }
+
+    const option = page.locator(optionSelector).nth(index);
+    if (!(await isVisible(option))) {
+      logger.warn(`[Quiz] LLM-selected option ${index} is not visible.`);
+      continue;
+    }
+
+    await option.setChecked(true, { force: true });
+    selected = true;
+    await page.waitForTimeout(250);
+  }
+
+  return selected;
+}
+
+async function submitCurrentAnswer(page: Page): Promise<boolean> {
+  const checkBtn = page
+    .locator("button")
+    .filter({ hasText: /^check$|^verify$/i })
+    .first();
+  if (await isVisible(checkBtn)) {
+    await checkBtn.click({ force: true });
+    await page.waitForTimeout(700);
+  }
+
+  for (const pat of [
+    /save\s*(&|and)?\s*next/i,
+    /^next$/i,
+    /^continue$/i,
+    /^submit$/i,
+    /^finish$/i,
+  ]) {
+    const btn = page.locator("button").filter({ hasText: pat }).first();
+    if ((await isVisible(btn)) && !(await btn.isDisabled())) {
+      await btn.click({ force: true });
+      return true;
+    }
+  }
+
+  return await isVisible(checkBtn);
 }
 
 async function getQuizStepSignature(page: Page): Promise<string> {
