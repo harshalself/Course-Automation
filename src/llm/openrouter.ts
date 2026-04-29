@@ -1,5 +1,6 @@
 import { logger } from "../logger";
 import { OpenRouterConfig, QuizAnswer, QuizSnapshot } from "../types";
+import { z } from "zod";
 
 interface OpenRouterChatResponse {
   choices?: Array<{
@@ -11,6 +12,13 @@ interface OpenRouterChatResponse {
     message?: string;
   };
 }
+
+const QuizAnswerResponseSchema = z.object({
+  answerIndices: z.array(z.union([z.number(), z.string()])).default([]),
+  textAnswer: z.string().nullable().optional(),
+  confidence: z.number().min(0).max(1).nullable().optional(),
+  explanation: z.string().nullable().optional(),
+});
 
 export async function answerQuizWithOpenRouter(
   snapshot: QuizSnapshot,
@@ -36,7 +44,46 @@ export async function answerQuizWithOpenRouter(
         body: JSON.stringify({
           model: openRouter.model,
           temperature: openRouter.temperature,
-          response_format: { type: "json_object" },
+          response_format: {
+            type: "json_schema",
+            json_schema: {
+              name: "quiz_answer",
+              strict: true,
+              schema: {
+                type: "object",
+                properties: {
+                  answerIndices: {
+                    type: "array",
+                    description:
+                      "Zero-based indexes of the selected options. Use one index for single-choice questions.",
+                    items: {
+                      anyOf: [{ type: "number" }, { type: "string" }],
+                    },
+                  },
+                  textAnswer: {
+                    anyOf: [{ type: "string" }, { type: "null" }],
+                    description:
+                      "Answer text for text-response questions, otherwise null.",
+                  },
+                  confidence: {
+                    anyOf: [{ type: "number" }, { type: "null" }],
+                    description: "Confidence from 0 to 1.",
+                  },
+                  explanation: {
+                    anyOf: [{ type: "string" }, { type: "null" }],
+                    description: "Brief reason for the selected answer.",
+                  },
+                },
+                required: [
+                  "answerIndices",
+                  "textAnswer",
+                  "confidence",
+                  "explanation",
+                ],
+                additionalProperties: false,
+              },
+            },
+          },
           messages: [
             {
               role: "system",
@@ -68,7 +115,15 @@ export async function answerQuizWithOpenRouter(
       return null;
     }
 
-    return normalizeAnswer(parseJsonObject(content), snapshot);
+    const parsed = QuizAnswerResponseSchema.safeParse(parseJsonObject(content));
+    if (!parsed.success) {
+      logger.warn(
+        `OpenRouter response did not match quiz answer schema: ${parsed.error.message}`,
+      );
+      return null;
+    }
+
+    return normalizeAnswer(parsed.data, snapshot);
   } catch (error) {
     const message =
       error instanceof Error && error.name === "AbortError"
