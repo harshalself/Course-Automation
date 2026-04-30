@@ -145,6 +145,7 @@ export class CourseAutomation {
       );
       logger.info(`Detected page type: ${pageType}`);
 
+      let handled = false;
       if (pageType === "assignment") {
         if (config.stopOnAssignment) {
           this.state.setStopReason("assignment_reached");
@@ -154,12 +155,19 @@ export class CourseAutomation {
           );
           return;
         }
-        logger.info(
-          "Assignment step detected, but stopOnAssignment=false so continuing flow",
-        );
-      }
 
-      let handled = false;
+        const uploadAttempted = await this.handleAssignmentUpload(page);
+        if (uploadAttempted) {
+          handled = true;
+          logger.info(
+            "Assignment file upload attempted, continuing flow.",
+          );
+        } else {
+          logger.info(
+            "Assignment step detected, but stopOnAssignment=false so continuing flow",
+          );
+        }
+      }
       if (pageType === "video") {
         handled = await handleVideo(
           page,
@@ -284,6 +292,83 @@ export class CourseAutomation {
       await page.waitForTimeout(500);
     }
     return false; // Let tryMoveToNext click the next button
+  }
+
+  private async handleAssignmentUpload(page: Page): Promise<boolean> {
+    const assignmentPath = path.resolve(process.cwd(), config.assignmentUploadFile);
+
+    try {
+      await fs.access(assignmentPath);
+    } catch {
+      logger.warn(
+        `Assignment upload file not found: ${assignmentPath}. Please place the file in the repository root or update config.assignmentUploadFile.`,
+      );
+      return false;
+    }
+
+    const fileInput = page.locator("input[type='file']").first();
+    if ((await fileInput.count()) > 0) {
+      try {
+        await fileInput.setInputFiles(assignmentPath);
+        logger.info(`Uploaded assignment file ${path.basename(assignmentPath)}.`);
+        await this.clickAssignmentSubmit(page);
+        return true;
+      } catch (error) {
+        logger.warn(
+          `Assignment file upload failed on file input: ${(error as Error).message}`,
+        );
+        return false;
+      }
+    }
+
+    const uploadButton = page
+      .locator("button, a, input[type='button'], label")
+      .filter({ hasText: /upload|browse|choose file|attach file/i })
+      .first();
+
+    if (!(await isVisible(uploadButton))) {
+      logger.info("Assignment step found but no upload button or file input was available.");
+      return false;
+    }
+
+    const fileChooserPromise = page
+      .waitForEvent("filechooser", { timeout: 3000 })
+      .catch(() => null);
+
+    await uploadButton.click({ force: true }).catch(() => undefined);
+
+    const fileChooser = await fileChooserPromise;
+    if (fileChooser) {
+      try {
+        await fileChooser.setFiles(assignmentPath);
+        logger.info(`Uploaded assignment file ${path.basename(assignmentPath)}.`);
+        await this.clickAssignmentSubmit(page);
+        return true;
+      } catch (error) {
+        logger.warn(
+          `Assignment file upload failed via file chooser: ${(error as Error).message}`,
+        );
+        return false;
+      }
+    }
+
+    logger.info("Upload button clicked, but file chooser did not appear.");
+    return false;
+  }
+
+  private async clickAssignmentSubmit(page: Page): Promise<void> {
+    const clicked = await clickAction(page, [
+      /submit assignment/i,
+      /submit/i,
+      /upload/i,
+      /save/i,
+      /finish/i,
+      /done/i,
+    ]);
+    if (clicked) {
+      logger.info("Clicked assignment submission button after upload.");
+      await page.waitForTimeout(1500);
+    }
   }
 
   private async isAssignmentStep(page: Page): Promise<boolean> {

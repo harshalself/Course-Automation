@@ -34,6 +34,8 @@ export const config = {
   quizMode: parseQuizMode(fileConfig.quizMode),
   autoSubmitQuiz: fileConfig.autoSubmitQuiz ?? true,
   stopOnAssignment: fileConfig.stopOnAssignment ?? true,
+  assignmentUploadFile:
+    fileConfig.assignmentUploadFile ?? "detox-assignmnet.pdf",
   videoScriptFile: fileConfig.videoScriptFile ?? "scripts/video-complete.js",
   notifyOnStop: fileConfig.notifyOnStop ?? true,
   stopSoundFile:
