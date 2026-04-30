@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { logger } from "../logger";
-import { LlmConfig, QuizAnswer, QuizSnapshot } from "../types";
+import { LlmConfig, QuizAnswer, QuizSnapshot, WrongQuizAnswer } from "../types";
 
 interface ChatCompletionResponse {
   choices?: Array<{
@@ -53,6 +53,7 @@ const quizAnswerJsonSchema = {
 export async function answerQuizWithLlm(
   snapshot: QuizSnapshot,
   llm: LlmConfig,
+  previousWrongAnswers: WrongQuizAnswer[] = [],
 ): Promise<QuizAnswer | null> {
   if (!llm.apiKey) {
     logger.warn(`No API key configured for ${llm.provider} llm provider.`);
@@ -79,7 +80,7 @@ export async function answerQuizWithLlm(
           },
           {
             role: "user",
-            content: buildPrompt(snapshot),
+            content: buildPrompt(snapshot, previousWrongAnswers),
           },
         ],
       }),
@@ -156,20 +157,49 @@ function buildResponseFormat(llm: LlmConfig): object {
   };
 }
 
-function buildPrompt(snapshot: QuizSnapshot): string {
+function buildPrompt(
+  snapshot: QuizSnapshot,
+  previousWrongAnswers: WrongQuizAnswer[],
+): string {
   const options = snapshot.options
     .map((option, index) => `${index}: ${option}`)
     .join("\n");
+  const wrongAnswers =
+    previousWrongAnswers.length === 0
+      ? []
+      : [
+          "Previous answer(s) submitted for this same question were marked wrong. Do not repeat them:",
+          ...previousWrongAnswers.map(
+            (answer, index) =>
+              `${index + 1}: ${formatWrongAnswer(answer, snapshot)}`,
+          ),
+        ];
 
   return [
     `Question:\n${snapshot.question}`,
     snapshot.options.length > 0 ? `Options:\n${options}` : "Options: none",
+    ...wrongAnswers,
     `Multiple selections allowed: ${snapshot.isMultiSelect}`,
     `Text response field present: ${snapshot.hasTextResponse}`,
     "Return JSON like {\"answerIndices\":[0],\"textAnswer\":null,\"confidence\":0.82,\"explanation\":null}.",
     "For single-choice questions, return exactly one index. For multi-select questions, return every correct index. For text response questions, put the response in textAnswer.",
     "Keep explanation null unless useful; if included, use 12 words or fewer.",
   ].join("\n\n");
+}
+
+function formatWrongAnswer(
+  answer: WrongQuizAnswer,
+  snapshot: QuizSnapshot,
+): string {
+  const selectedOptions = answer.answerIndices
+    .map((index) => {
+      const optionText = snapshot.options[index];
+      return optionText === undefined ? `${index}` : `${index}: ${optionText}`;
+    })
+    .join("; ");
+  const textAnswer = answer.textAnswer ? ` textAnswer="${answer.textAnswer}"` : "";
+
+  return `answerIndices=[${selectedOptions}]${textAnswer}`;
 }
 
 function parseJsonObject(content: string): unknown {

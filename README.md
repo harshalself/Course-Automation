@@ -43,6 +43,7 @@ Adjust the automation behavior in `config.json`.
 | `llmStructuredOutputMode` | `json_schema` for strict schema output or `json_object` for JSON mode. Ollama defaults to `json_object`; OpenRouter and LM Studio default to `json_schema` | provider default |
 | `llmTemperature` | Model sampling temperature for quiz answers | `0` |
 | `llmTimeoutMs` | LLM request timeout in milliseconds | `45000` |
+| `llmMaxAnswerAttempts` | Maximum LLM attempts per question when the page reports a wrong answer. Wrong answers are fed back to the model before retrying | `2` |
 | `autoSubmitQuiz` | Automatically submit quiz once answers found | `true` |
 | `stopOnAssignment` | Stop when a file upload step is reached | `true` |
 | `notifyOnStop` | Play a sound on completion/error | `true` |

@@ -29,3 +29,8 @@ export interface QuizAnswer {
   confidence?: number;
   explanation?: string;
 }
+
+export interface WrongQuizAnswer {
+  answerIndices: number[];
+  textAnswer?: string;
+}

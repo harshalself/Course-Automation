@@ -76,6 +76,14 @@ function getDefaultStructuredOutputMode(
   return provider === "ollama" ? "json_object" : "json_schema";
 }
 
+function parsePositiveInteger(value: unknown, fallback: number): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return fallback;
+  }
+
+  return Math.max(1, Math.trunc(value));
+}
+
 const llmProvider = parseLlmProvider(
   fileConfig.llmProvider ?? fileConfig.llm?.provider,
 );
@@ -91,6 +99,10 @@ export const config = {
 
   quizMode: parseQuizMode(fileConfig.quizMode),
   autoSubmitQuiz: fileConfig.autoSubmitQuiz ?? true,
+  llmMaxAnswerAttempts: parsePositiveInteger(
+    fileConfig.llmMaxAnswerAttempts ?? fileConfig.llm?.maxAnswerAttempts,
+    2,
+  ),
   llm: {
     provider: llmProvider,
     apiKey:
